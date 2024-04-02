@@ -2,7 +2,6 @@ package brain
 
 import (
 	"fmt"
-	"regexp"
 	"testing"
 )
 
@@ -16,9 +15,8 @@ func TestAdd(t *testing.T) {
 	}
 
 	// Example usage of normalizeSentence
-	punctRe := regexp.MustCompile(`[\!"#$%&'()*+,./:;<=>?@\[\\\]^_` + "`{|}~]")
 	sentence := "Example sentence to normalize!"
-	normalized := normalizeSentence(sentence, punctRe)
+	normalized := normalizeSentence(sentence)
 	println(normalized)
 
 	// Example usage

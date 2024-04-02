@@ -3,6 +3,7 @@ package brain
 import (
 	"encoding/json"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -27,7 +28,8 @@ func loadConfig(path string) (map[string]interface{}, error) {
 }
 
 // normalizeSentence cleans and normalizes sentences.
-func normalizeSentence(sentence string, punctRe *regexp.Regexp) string {
+func normalizeSentence(sentence string) string {
+	punctRe := regexp.MustCompile(`[\!"#$%&'()*+,./:;<=>?@\[\\\]^_` + "`{|}~]")
 	sentence = punctRe.ReplaceAllString(strings.ToLower(sentence), "")
 	sentence = strings.ReplaceAll(sentence, "iiteung", "")
 	sentence = strings.ReplaceAll(sentence, "iteung", "")
@@ -42,6 +44,8 @@ type Tokenizer struct {
 	// Example fields
 	Tokens map[string]int
 	// Add other fields as necessary
+	WordIndex map[string]int // WordIndex is a field of type map[string]int
+
 }
 
 // LoadTokenizer loads a tokenizer from a file in JSON format.
@@ -107,4 +111,72 @@ func setConfig(fileName string) (*Stemmer, *regexp.Regexp, []string, string) {
 	path := filepath.Join(fileName, "/")
 
 	return stemmer, punctReEscape, unknowns, path
+}
+
+// Let's assume these are pre-defined elsewhere in your Go application
+var (
+	stemmer         *Stemmer // Your stemmer implementation
+	unknowns        = []string{"gak paham", "kurang ngerti", "I don't know"}
+	tokenizer       *Tokenizer // Your tokenizer implementation
+	maxlenAnswers   int
+	encoderModel    *Model // Encapsulate your encoder model interaction in this struct
+	decoderModel    *Model // Encapsulate your decoder model interaction in this struct
+	maxlenQuestions int
+)
+
+type Model struct {
+	// Add model fields and methods
+}
+
+// Predict method for Model
+func (m *Model) Predict(inputs []int) ([]float64, error) {
+	// Prediction logic here
+	return []float64{}, nil // placeholder return
+}
+
+// Tokenize method for Tokenizer
+func (t *Tokenizer) Tokenize(sentence string) []int {
+	// Tokenization logic here
+	return []int{} // placeholder return
+}
+
+// Chat function takes the input and converses based on the trained models
+func Chat(inputValue string) (string, string) {
+	// Preprocess and stem the input
+	normalizedInput := stemmer.Stem(normalizeSentence(inputValue))
+	tokens := tokenizer.Tokenize(normalizedInput)
+
+	// Predict using encoder model
+	statesValues, _ := encoderModel.Predict(tokens)
+
+	emptyTargetSeq := make([]float64, 1) // Simulating numpy.zeros((1,1))
+	emptyTargetSeq[0] = float64(tokenizer.WordIndex("start"))
+
+	stopCondition := false
+	var decodedTranslation strings.Builder
+	status := "false"
+
+	for !stopCondition {
+		decOutputs, h, c := decoderModel.Predict(emptyTargetSeq, statesValues)
+
+		sampledWordIndex := argmax(decOutputs)
+		if decOutputs[sampledWordIndex] < 0.1 {
+			randomIndex := rand.Intn(len(unknowns))
+			decodedTranslation.WriteString(unknowns[randomIndex])
+			break
+		}
+
+		sampledWord, exists := tokenizer.IndexToWord(sampledWordIndex)
+		if !exists || sampledWord == "end" || decodedTranslation.Len() > maxlenAnswers {
+			stopCondition = true
+		} else {
+			decodedTranslation.WriteString(" " + sampledWord)
+		}
+
+		emptyTargetSeq[0] = float64(sampledWordIndex)
+		statesValues = []float64{h, c}
+		status = "true"
+	}
+
+	return decodedTranslation.String(), status
 }
